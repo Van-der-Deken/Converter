@@ -76,6 +76,7 @@ Converter::Converter(const std::ostream &inLogStream) : logStream(inLogStream.rd
 Converter::~Converter()
 {
     triangles.deleteBuffer();
+    prismAABBs.deleteBuffer();
     sdf.deleteBuffer();
 
     filler.deleteProgram();
@@ -163,6 +164,7 @@ void Converter::computeDistanceField(const std::vector<Triangle> &inTriangles)
     triangles.bind();
     triangles.data(trianglesSize * TRIANGLE_SIZE, &(*startPosition), GL_STATIC_DRAW);
     triangles.bindBase(0);
+
     prismAABBs.bind();
     prismAABBs.data(trianglesSize * PRISM_AABB_SIZE, NULL, GL_STATIC_DRAW);
     prismAABBs.bindBase(1);
@@ -199,6 +201,8 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
     sdf.bind();
     sdf.data(sdfSize * DISTANCE_AND_COORD_SIZE, NULL, GL_STATIC_DRAW);
     sdf.bindBase(2);
+
+    prismAABBs.bind();
     PrismAABB *prismAABBPointer = (PrismAABB*)prismAABBs.map(GL_READ_ONLY);
     uint32_t minIndex = (uint32_t)prismAABBPointer[0].minIndex;
     uint32_t maxIndex = (uint32_t)prismAABBPointer[0].maxIndex;
@@ -209,11 +213,9 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
         if(prismAABBPointer[i].maxIndex > maxIndex)
             maxIndex = prismAABBPointer[i].maxIndex;
     }
-    uint32_t sdfMaxIndex = sdfSize + maxIndex - 1;
+    uint32_t sdfMaxIndex = sdfSize + minIndex - 1;
     std::vector<uint32_t> skippedIndices(0);
     uint16_t pointsAmount = 0;
-    std::cout << minIndex << std::endl;
-    std::cout << maxIndex << std::endl;
     for(uint32_t i = 0; i < inTriangleSize; ++i)
     {
         if(prismAABBPointer[i].minIndex < sdfMaxIndex)

@@ -220,43 +220,51 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
     filler.bindUniform("filler", fillerValue);
     glDispatchCompute(resolution.x, resolution.y, resolution.z);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-    for(uint32_t i = 0; i < inTriangleSize; ++i)
-    {
-        if(prismAABBPointer[i].minIndex < sdfMaxIndex)
-        {
-            kernel.use();
-            kernel.bindUniformVector(SP_UVEC3, "resolution", glm::value_ptr(resolution));
-            kernel.bindUniformVector(SP_VEC3, "shellMin", glm::value_ptr(shellMin));
-            kernel.bindUniformui("minIndex", minIndex);
-            kernel.bindUniformui("maxIndex", maxIndex);
-            kernel.bindUniformui("aabbAndTriangleIndex", i);
-            if(prismAABBPointer[i].maxIndex < sdfMaxIndex)
-                kernel.bindUniformui("fullyInRange", 1);
-            else
-            {
-                kernel.bindUniformui("fullyInRange", 0);
-                skippedIndices.push_back(i);
-            }
-            pointsAmount = (uint16_t)prismAABBPointer[i].totalSize;
-            prismAABBs.unmap();
-            glDispatchCompute(1, 1, pointsAmount);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-            kernel.unuse();
-            prismAABBPointer = (PrismAABB*)prismAABBs.map(GL_READ_ONLY);
-        }
-        else
-            skippedIndices.push_back(i);
-    }
-    sdf.bind();
-    GLfloat *sdfPointer = (GLfloat*)sdf.map(GL_READ_ONLY);
-    for(int a = 0; a < 256 * 256 * 256; ++a)
-        if(sdfPointer[a * 4 + 3] != fillerValue)
-            std::cout << a << " " << sdfPointer[a * 4] << ","
-                                  << sdfPointer[a * 4 + 1] << ","
-                                  << sdfPointer[a * 4 + 2] << " "
-                                  << sdfPointer[a * 4 + 3] << std::endl;
-    sdf.unmap();
+//    for(uint32_t i = 0; i < 150; ++i)
+//    {
+//        std::cout << i << std::endl;
+//        std::cout << "Prism min:" << (uint32_t)prismAABBPointer[i].minIndex << std::endl;
+//        std::cout << "Prism max:" << (uint32_t)prismAABBPointer[i].maxIndex << std::endl;
+//        if(prismAABBPointer[i].minIndex < sdfMaxIndex)
+//        {
+//            kernel.use();
+//            kernel.bindUniformVector(SP_UVEC3, "resolution", glm::value_ptr(resolution));
+//            kernel.bindUniformVector(SP_VEC3, "shellMin", glm::value_ptr(shellMin));
+//            kernel.bindUniformui("minIndex", minIndex);
+//            kernel.bindUniformui("maxIndex", maxIndex);
+//            kernel.bindUniformui("aabbAndTriangleIndex", i);
+//            if(prismAABBPointer[i].maxIndex < sdfMaxIndex)
+//                kernel.bindUniformui("fullyInRange", 1);
+//            else
+//            {
+//                kernel.bindUniformui("fullyInRange", 0);
+//                skippedIndices.push_back(i);
+//            }
+//            pointsAmount = (uint16_t)prismAABBPointer[i].totalSize;
+//            prismAABBs.unmap();
+//            glDispatchCompute(1, 1, pointsAmount);
+//            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+//            kernel.unuse();
+//            prismAABBPointer = (PrismAABB*)prismAABBs.map(GL_READ_ONLY);
+//            glFlush();
+//            glFinish();
+//        }
+//        else
+//            skippedIndices.push_back(i);
+//    }
+//    sdf.bind();
+//    GLfloat *sdfPointer = (GLfloat*)sdf.map(GL_READ_ONLY);
+//    for(int a = 0; a < 256 * 256 * 256; ++a)
+//        if(sdfPointer[a * 4 + 3] != fillerValue)
+//            std::cout << a << " " << sdfPointer[a * 4] << ","
+//                                  << sdfPointer[a * 4 + 1] << ","
+//                                  << sdfPointer[a * 4 + 2] << " "
+//                                  << sdfPointer[a * 4 + 3] << std::endl;
+//    sdf.unmap();
+    std::cout << minIndex << std::endl;
     std::cout << maxIndex << std::endl;
+    std::cout << MAX_SDF_SSBO_SIZE << std::endl;
+    std::cout << skippedIndices.size() << std::endl;
 }
 
 void Converter::writeFiles()

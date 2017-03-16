@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
 
     std::ios::sync_with_stdio(false);
     Converter converter;
-    converter.setResolution(glm::uvec3(256));
+    converter.setResolution(glm::uvec3(700));
     converter.setFillerValue(1000000.0f);
     converter.loadFiller("filler.glsl");
     converter.loadModifier("modifier.glsl");

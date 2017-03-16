@@ -2,9 +2,11 @@
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 uniform uint fullyInRange;
+uniform vec3 shellMin;
 uniform uvec3 resolution;
 uniform uint minIndex;
 uniform uint maxIndex;
+uniform uint aabbAndTriangleIndex;
 
 struct Triangle
 {
@@ -18,9 +20,27 @@ struct Triangle
     float padding15;
 };
 
-uniform Triangle triangle;
+struct PrismAABB
+{
+    vec3 min;
+    float totalSize;
+    vec3 pointsAmount;
+    float minIndex;
+    vec3 step;
+    float maxIndex;
+};
 
-layout (std430, binding = 1) buffer SDFBuffer
+layout (std140, binding = 0) buffer TrianglesBuffer
+{
+    Triangle Triangles[];
+};
+
+layout (std140, binding = 1) buffer PrismAABBBuffer
+{
+    PrismAABB PrismAABBs[];
+};
+
+layout (std430, binding = 2) buffer SDFBuffer
 {
     vec4 SDF[];
 };
@@ -37,6 +57,8 @@ float distanceToEdge(in vec3 P0, in vec3 P1, in vec3 P)
 
 void computeDistance(in vec3 inPoint, in uint inIndex)
 {
+    Triangle triangle = Triangles[aabbAndTriangleIndex];
+    inIndex -= minIndex;
     float distance = dot(inPoint - triangle.v1, triangle.n);
     float sgn = sign(distance);
     sgn = sgn == 0 ? 1.0 : sgn;
@@ -77,7 +99,6 @@ void computeDistance(in vec3 inPoint, in uint inIndex)
             }
         }
     }
-    inIndex -= minIndex;
     float distValue = SDF[inIndex].w;
     if(abs(distance) < abs(distValue))
     {
@@ -88,12 +109,18 @@ void computeDistance(in vec3 inPoint, in uint inIndex)
 
 void main()
 {
-    vec3 point = vec3(triangle.v2.x + gl_WorkGroupID.x * triangle.n.x,
-                      triangle.v2.y + gl_WorkGroupID.y * triangle.n.y,
-                      triangle.v2.z + gl_WorkGroupID.z * triangle.n.z);
-    uint index = uint((point.x - triangle.v3.x) / triangle.n.x) * resolution.y * resolution.z +
-                 uint((point.y - triangle.v3.y) / triangle.n.y) * resolution.z +
-                 uint((point.z - triangle.v3.z) / triangle.n.z);
+    PrismAABB prismAABB = PrismAABBs[aabbAndTriangleIndex];
+    uint pointShellIndex = gl_WorkGroupID.x * gl_WorkGroupID.y * gl_WorkGroupID.z;
+    uint pointsX = uint(floor(pointShellIndex / prismAABB.pointsAmount.y));
+    uint pointsY = uint(floor((pointShellIndex - pointsX * prismAABB.pointsAmount.y) / prismAABB.pointsAmount.z));
+    uint pointsZ = pointShellIndex - pointsX * uint(prismAABB.pointsAmount.y) -
+                                     pointsY * uint(prismAABB.pointsAmount.z);
+    vec3 point = vec3(prismAABB.min.x + pointsX * prismAABB.step.x,
+                      prismAABB.min.y + pointsY * prismAABB.step.y,
+                      prismAABB.min.z + pointsZ * prismAABB.step.z);
+    uint index = uint((point.x - shellMin.x) / prismAABB.step.x) * resolution.y * resolution.z +
+                 uint((point.y - shellMin.y) / prismAABB.step.y) * resolution.z +
+                 uint((point.z - shellMin.z) / prismAABB.step.z);
     if(fullyInRange == 1)
         computeDistance(point, index);
     else

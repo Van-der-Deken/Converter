@@ -14,6 +14,43 @@
 #include "../classes/ShaderProgram.h"
 #include "../classes/Mesh.h"
 
+struct PrismAABB
+{
+    GLfloat min[3];
+    GLfloat totalSize;
+    GLfloat pointsAmount[3];
+    GLfloat minIndex;
+    GLfloat step[3];
+    GLfloat maxIndex;
+
+    PrismAABB()
+    {
+        for(int i = 0; i < 3; ++i)
+        {
+            min[i] = 0;
+            pointsAmount[i] = 0;
+            step[i] = 0;
+        }
+        totalSize = 0;
+        minIndex = 0;
+        maxIndex = 0;
+    }
+
+    PrismAABB& operator=(const PrismAABB &lValue)
+    {
+        for(int i = 0; i < 3; ++i)
+        {
+            min[i] = lValue.min[i];
+            pointsAmount[i] = lValue.pointsAmount[i];
+            step[i] = lValue.step[i];
+        }
+        totalSize = lValue.totalSize;
+        minIndex = lValue.minIndex;
+        maxIndex = lValue.maxIndex;
+        return *this;
+    }
+};
+
 class Converter {
     public:
         Converter();
@@ -31,12 +68,13 @@ class Converter {
         void computeDistanceField(const std::string &fileWithTriangles);
     private:
         void openFiles(const uint16_t &index);
-        void computeDistance();
+        void computeDistance(const uint32_t &inTriangleSize);
         void writeFiles();
 
         std::stringstream stringStream;
 
         GLBuffer triangles;
+        GLBuffer prismAABBs;
         GLBuffer sdf;
 
         ShaderProgram filler;
@@ -54,9 +92,11 @@ class Converter {
         std::ostream logStream;
 
         uint32_t MAX_TRIANGLES_SSBO_SIZE;
+        uint32_t MAX_PRISM_AABB_SSBO_SIZE;
         uint32_t MAX_SDF_SSBO_SIZE;
         uint16_t MAX_WORK_GROUP_COUNT;
         uint16_t TRIANGLE_SIZE;
+        uint16_t PRISM_AABB_SIZE;
         uint16_t DISTANCE_AND_COORD_SIZE;
         uint16_t SIZE_FACTOR;
 };

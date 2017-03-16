@@ -18,12 +18,27 @@ struct Triangle
     float padding15;
 };
 
+struct PrismAABB
+{
+    vec3 min;
+    float totalSize;
+    vec3 pointsAmount;
+    float minIndex;
+    vec3 step;
+    float maxIndex;
+};
+
 layout (std140, binding = 0) buffer TrianglesBuffer
 {
     Triangle Triangles[];
 };
 
-void PrismAABB(in Triangle t, out vec3 AABBmin, out vec3 AABBmax)
+layout (std140, binding = 1) buffer PrismAABBBuffer
+{
+    PrismAABB PrismAABBs[];
+};
+
+void constructPrismAABB(in Triangle t, out vec3 AABBmin, out vec3 AABBmax)
 {
     vec3 displacement = epsilon * t.n;
     vec3 plusFaceV1 = t.v1 + displacement;
@@ -45,26 +60,28 @@ void main()
     uint index = gl_WorkGroupID.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z + gl_WorkGroupID.y * gl_WorkGroupSize.z +
                  gl_WorkGroupID.z;
     Triangle triangle = Triangles[index];
+    PrismAABB prismAABB = PrismAABBs[index];
     vec3 prismAABBmin = vec3(0, 0, 0);
     vec3 prismAABBmax = vec3(0, 0, 0);
-    PrismAABB(triangle, prismAABBmin, prismAABBmax);
+    constructPrismAABB(triangle, prismAABBmin, prismAABBmax);
     vec3 aabbSize = vec3(prismAABBmax.x - prismAABBmin.x, prismAABBmax.y - prismAABBmin.y,
                     prismAABBmax.z - prismAABBmin.z);
-    float totalSize = floor(aabbSize.x / step.x) * floor(aabbSize.y / step.y) * floor(aabbSize.z / step.z);
+    vec3 pointsAmount = vec3(floor(aabbSize.x / step.x),
+                             floor(aabbSize.y / step.y),
+                             floor(aabbSize.z / step.z));
+    float totalSize = pointsAmount.x * pointsAmount.y * pointsAmount.z;
     uint minIndex = uint((prismAABBmin.x - shellMin.x) / step.x) * resolution.y * resolution.z +
                     uint((prismAABBmin.y - shellMin.y) / step.y) * resolution.z +
                     uint((prismAABBmin.z - shellMin.z) / step.z);
     uint maxIndex = uint((prismAABBmax.x - shellMin.x) / step.x) * resolution.y * resolution.z +
                     uint((prismAABBmax.y - shellMin.y) / step.y) * resolution.z +
                     uint((prismAABBmax.z - shellMin.z) / step.z);
-    triangle.v1 = prismAABBmax;
-    triangle.v2 = prismAABBmin;
-    triangle.v3 = shellMin;
-    triangle.n = step;
-    triangle.padding3 = totalSize;
-    triangle.padding7 = minIndex;
-    triangle.padding11 = maxIndex;
-    triangle.padding15 = 0;
-    Triangles[index] = triangle;
+    prismAABB.min = prismAABBmin;
+    prismAABB.pointsAmount = pointsAmount;
+    prismAABB.step = step;
+    prismAABB.totalSize = totalSize;
+    prismAABB.minIndex = minIndex;
+    prismAABB.maxIndex = maxIndex;
+    PrismAABBs[index] = prismAABB;
     memoryBarrierBuffer();
 }

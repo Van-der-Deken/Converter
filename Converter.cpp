@@ -12,7 +12,7 @@ Converter::Converter() : logStream(std::cout.rdbuf()), ready(false)
     SIZE_FACTOR = 4;
     TRIANGLE_SIZE = sizeof(Triangle);
     PRISM_AABB_SIZE = sizeof(PrismAABB);
-    DISTANCE_AND_COORD_SIZE = sizeof(GLfloat);
+    DISTANCE_AND_COORD_SIZE = 4 * sizeof(GLfloat);
 
     GLint value = 0;
     glGetIntegerv(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, &value);
@@ -216,6 +216,10 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
     uint32_t sdfMaxIndex = sdfSize + minIndex - 1;
     std::vector<uint32_t> skippedIndices(0);
     uint16_t pointsAmount = 0;
+    filler.use();
+    filler.bindUniform("filler", fillerValue);
+    glDispatchCompute(resolution.x, resolution.y, resolution.z);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     for(uint32_t i = 0; i < inTriangleSize; ++i)
     {
         if(prismAABBPointer[i].minIndex < sdfMaxIndex)
@@ -243,6 +247,16 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
         else
             skippedIndices.push_back(i);
     }
+    sdf.bind();
+    GLfloat *sdfPointer = (GLfloat*)sdf.map(GL_READ_ONLY);
+    for(int a = 0; a < 256 * 256 * 256; ++a)
+        if(sdfPointer[a * 4 + 3] != fillerValue)
+            std::cout << a << " " << sdfPointer[a * 4] << ","
+                                  << sdfPointer[a * 4 + 1] << ","
+                                  << sdfPointer[a * 4 + 2] << " "
+                                  << sdfPointer[a * 4 + 3] << std::endl;
+    sdf.unmap();
+    std::cout << maxIndex << std::endl;
 }
 
 void Converter::writeFiles()

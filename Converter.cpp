@@ -178,7 +178,7 @@ void Converter::computeDistanceField(const std::vector<Triangle> &inTriangles)
                                                                              (shellMax.y - shellMin.y) / resolution.y,
                                                                              (shellMax.z - shellMin.z) / resolution.z)));
         modifier.bindUniformVector(SP_UVEC3, "resolution", glm::value_ptr(resolution));
-        modifier.bindUniform("epsilon", 0.01f);
+        modifier.bindUniform("epsilon", 0.001f);
         glDispatchCompute(1, 1, 1024);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         openFiles(i);
@@ -211,12 +211,14 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
     PrismAABB *prismAABBPointer = (PrismAABB*)prismAABBs.map(GL_READ_ONLY);
     std::vector<uint32_t> minIndices(0);
     std::vector<uint32_t> maxIndices(0);
-    std::vector<uint16_t> pointsAmount(0);
+    std::vector<glm::vec3> pointsAmount(0);
     uint32_t minIndex = (uint32_t)prismAABBPointer[0].minIndex;
     uint32_t maxIndex = (uint32_t)prismAABBPointer[0].maxIndex;
     minIndices.push_back(minIndex);
     maxIndices.push_back(maxIndex);
-    pointsAmount.push_back(prismAABBPointer[0].totalSize);
+    pointsAmount.push_back(glm::vec3(prismAABBPointer[0].pointsAmount[0],
+                                     prismAABBPointer[0].pointsAmount[1],
+                                     prismAABBPointer[0].pointsAmount[2]));
     for(uint32_t i = 1; i < inTriangleSize; ++i)
     {
         if(prismAABBPointer[i].minIndex < minIndex)
@@ -225,7 +227,9 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
             maxIndex = prismAABBPointer[i].maxIndex;
         minIndices.push_back(prismAABBPointer[i].minIndex);
         maxIndices.push_back(prismAABBPointer[i].maxIndex);
-        pointsAmount.push_back(prismAABBPointer[i].totalSize);
+        pointsAmount.push_back(glm::vec3(prismAABBPointer[i].pointsAmount[0],
+                                         prismAABBPointer[i].pointsAmount[1],
+                                         prismAABBPointer[i].pointsAmount[2]));
     }
     prismAABBs.unmap();
     uint32_t sdfMaxIndex = sdfSize + minIndex - 1;
@@ -256,7 +260,7 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
                 kernel.bindUniformui("fullyInRange", 0);
                 skippedIndices.push_back(i);
             }
-            glDispatchCompute(1, 1, pointsAmount[i]);
+            glDispatchCompute((GLuint)pointsAmount[i].x, (GLuint)pointsAmount[i].y, (GLuint)pointsAmount[i].z);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
             kernel.unuse();
 //            sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -265,6 +269,7 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
         else
             skippedIndices.push_back(i);
     }
+    std::cout << "Error:" << glGetError() << std::endl;
 }
 
 void Converter::writeFiles()
@@ -275,13 +280,16 @@ void Converter::writeFiles()
     gettimeofday(&t, NULL);
     time = (uint64_t)t.tv_sec * 1000 + t.tv_usec / 1000 - time;
     uint32_t realSize = 0;
+    std::vector<GLfloat> data(0);
     for(uint32_t i = 0; i < sdfSize; ++i)
         if(sdfPointer[i * 4 + 3] != fillerValue)
             for(short j = 0; j < 4; ++j)
-            {
-                sdfFile.write(reinterpret_cast<char*>(&sdfPointer[i * 4 + j]), sizeof(GLfloat));
-                ++realSize;
-            }
+                data.push_back(sdfPointer[i * 4 + j]);
+    realSize = (uint32_t)data.size();
     sdfFile.write(reinterpret_cast<char*>(&realSize), sizeof(uint32_t));
+    for(uint32_t i = 0; i < realSize; ++i)
+        sdfFile.write(reinterpret_cast<char*>(&data[i]), sizeof(GLfloat));
     sdfFile.close();
+    data.clear();
+    std::cout << realSize << std::endl;
 }

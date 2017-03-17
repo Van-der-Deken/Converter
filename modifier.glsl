@@ -64,11 +64,18 @@ void main()
     vec3 prismAABBmin = vec3(0, 0, 0);
     vec3 prismAABBmax = vec3(0, 0, 0);
     constructPrismAABB(triangle, prismAABBmin, prismAABBmax);
-    vec3 aabbSize = vec3(prismAABBmax.x - prismAABBmin.x, prismAABBmax.y - prismAABBmin.y,
-                    prismAABBmax.z - prismAABBmin.z);
-    vec3 pointsAmount = vec3(floor(aabbSize.x / step.x),
-                             floor(aabbSize.y / step.y),
-                             floor(aabbSize.z / step.z));
+    prismAABBmin = vec3(ceil((prismAABBmin.x - shellMin.x) / step.x) * step.x + shellMin.x,
+                        ceil((prismAABBmin.y - shellMin.y) / step.y) * step.y + shellMin.y,
+                        ceil((prismAABBmin.z - shellMin.z) / step.z) * step.z + shellMin.z);
+    prismAABBmax = vec3(floor((prismAABBmax.x - shellMin.x) / step.x) * step.x + shellMin.x,
+                        floor((prismAABBmax.y - shellMin.y) / step.y) * step.y + shellMin.y,
+                        floor((prismAABBmax.z - shellMin.z) / step.z) * step.z + shellMin.z);
+    vec3 pointsAmount = vec3(abs(floor((prismAABBmax.x - shellMin.x) / step.x) -
+                                        ceil((prismAABBmin.x - shellMin.x) / step.x)),
+                             abs(floor((prismAABBmax.y - shellMin.y) / step.y) -
+                                        ceil((prismAABBmin.y - shellMin.y) / step.y)),
+                             abs(floor((prismAABBmax.z - shellMin.z) / step.z) -
+                                        ceil((prismAABBmin.z - shellMin.z) / step.z)));
     float totalSize = pointsAmount.x * pointsAmount.y * pointsAmount.z;
     uint minIndex = uint((prismAABBmin.x - shellMin.x) / step.x) * resolution.y * resolution.z +
                     uint((prismAABBmin.y - shellMin.y) / step.y) * resolution.z +

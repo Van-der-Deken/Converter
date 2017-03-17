@@ -110,10 +110,14 @@ void computeDistance(in vec3 inPoint, in uint inIndex)
 void main()
 {
     PrismAABB prismAABB = PrismAABBs[aabbAndTriangleIndex];
-    uint pointShellIndex = gl_WorkGroupID.x * gl_WorkGroupID.y * gl_WorkGroupID.z;
-    uint pointsX = uint(floor(pointShellIndex / prismAABB.pointsAmount.y));
-    uint pointsY = uint(floor((pointShellIndex - pointsX * prismAABB.pointsAmount.y) / prismAABB.pointsAmount.z));
-    uint pointsZ = pointShellIndex - pointsX * uint(prismAABB.pointsAmount.y) -
+//    uint pointShellIndex = gl_WorkGroupID.x * gl_WorkGroupID.y * gl_WorkGroupID.z;
+    uint pointShellIndex = gl_WorkGroupID.x * gl_NumWorkGroups.y * gl_NumWorkGroups.z +
+                           gl_WorkGroupID.y * gl_NumWorkGroups.z +
+                           gl_WorkGroupID.z;
+    uint pointsX = uint(floor(pointShellIndex / (prismAABB.pointsAmount.y * prismAABB.pointsAmount.z)));
+    uint pointsY = uint(floor((pointShellIndex - pointsX * prismAABB.pointsAmount.y * prismAABB.pointsAmount.z) /
+                                prismAABB.pointsAmount.z));
+    uint pointsZ = pointShellIndex - pointsX * uint(prismAABB.pointsAmount.y * prismAABB.pointsAmount.z) -
                                      pointsY * uint(prismAABB.pointsAmount.z);
     vec3 point = vec3(prismAABB.min.x + pointsX * prismAABB.step.x,
                       prismAABB.min.y + pointsY * prismAABB.step.y,

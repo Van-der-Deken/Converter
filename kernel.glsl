@@ -40,7 +40,7 @@ layout (std140, binding = 1) buffer PrismAABBBuffer
     PrismAABB PrismAABBs[];
 };
 
-layout (std430, binding = 2) buffer SDFBuffer
+layout (std430, binding = 2) coherent buffer SDFBuffer
 {
     vec4 SDF[];
 };

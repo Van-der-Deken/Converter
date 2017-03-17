@@ -85,6 +85,8 @@ class Converter {
         std::ofstream sdfFile;
 
         bool ready;
+        uint64_t time;
+        uint32_t sdfSize;
         glm::uvec3 resolution;
         glm::vec3 shellMin;
         glm::vec3 shellMax;

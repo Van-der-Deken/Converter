@@ -8,7 +8,7 @@
 #include "../glm/gtc/type_ptr.inl"
 #include <sys/time.h>
 
-Converter::Converter() : logStream(std::cout.rdbuf()), ready(false)
+Converter::Converter() : logStream(std::cout.rdbuf())
 {
     SIZE_FACTOR = 4;
     TRIANGLE_SIZE = sizeof(Triangle);
@@ -21,7 +21,6 @@ Converter::Converter() : logStream(std::cout.rdbuf()), ready(false)
     {
         logStream << "CRITICAL PROBLEM:You has only " << value
                   << " SSBO binding points, while converter needs at least 3\n";
-        ready = false;
         return;
     }
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &value);
@@ -54,7 +53,6 @@ Converter::Converter(const std::ostream &inLogStream) : logStream(inLogStream.rd
     {
         logStream << "CRITICAL PROBLEM:You has only " << value
                   << " SSBO binding points, while converter needs at least 3\n";
-        ready = false;
         return;
     }
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &value);
@@ -110,6 +108,11 @@ void Converter::setFillerValue(GLfloat inFillerValue)
     fillerValue = inFillerValue;
 }
 
+void Converter::setDelta(GLfloat inDelta)
+{
+    delta = inDelta;
+}
+
 bool Converter::loadFiller(const std::string &path)
 {
     if(!filler.loadShaderFromFile(path, GL_COMPUTE_SHADER))
@@ -157,7 +160,6 @@ bool Converter::loadKernel(const std::string &path)
 
 void Converter::computeDistanceField(const std::vector<Triangle> &inTriangles)
 {
-    uint16_t i = 0;
     uint16_t triangleCycles = (uint16_t)ceil((double)inTriangles.size() / MAX_TRIANGLES_SSBO_SIZE);
     uint32_t trianglesSize = triangleCycles > 1 ? MAX_TRIANGLES_SSBO_SIZE : inTriangles.size();
 
@@ -170,36 +172,30 @@ void Converter::computeDistanceField(const std::vector<Triangle> &inTriangles)
     prismAABBs.data(trianglesSize * PRISM_AABB_SIZE, NULL, GL_DYNAMIC_READ);
     prismAABBs.bindBase(1);
 
-    for(i = 0; i < triangleCycles; ++i)
-    {
-        modifier.use();
-        modifier.bindUniformVector(SP_VEC3, "shellMin", glm::value_ptr(shellMin));
-        modifier.bindUniformVector(SP_VEC3, "step", glm::value_ptr(glm::vec3((shellMax.x - shellMin.x) / resolution.x,
-                                                                             (shellMax.y - shellMin.y) / resolution.y,
-                                                                             (shellMax.z - shellMin.z) / resolution.z)));
-        modifier.bindUniformVector(SP_UVEC3, "resolution", glm::value_ptr(resolution));
-        modifier.bindUniform("epsilon", 0.001f);
-        glDispatchCompute(1, 1, 1024);
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-        openFiles(i);
-        computeDistance(trianglesSize);
-        writeFiles();
-        startPosition += MAX_TRIANGLES_SSBO_SIZE;
-    }
-    std::cout << "Time:" << time << std::endl;
+    modifier.use();
+    modifier.bindUniformVector(SP_VEC3, "shellMin", glm::value_ptr(shellMin));
+    modifier.bindUniformVector(SP_VEC3, "step", glm::value_ptr(glm::vec3((shellMax.x - shellMin.x) / resolution.x,
+                                                                         (shellMax.y - shellMin.y) / resolution.y,
+                                                                         (shellMax.z - shellMin.z) / resolution.z)));
+    modifier.bindUniformVector(SP_UVEC3, "resolution", glm::value_ptr(resolution));
+    modifier.bindUniform("delta", delta);
+    glm::uvec3 groups = computeGroups(trianglesSize);
+    glDispatchCompute(groups.x, groups.y, groups.z);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    openFile();
+    computeDistance(trianglesSize);
+    writeFile();
+    logStream << "Time, spent on SDF computing:" << time << std::endl;
 }
 
-void Converter::openFiles(const uint16_t &index)
+void Converter::openFile()
 {
-    std::string distancesFilename = "distanceValues_";
-    stringStream << distancesFilename << index;
-    sdfFile.open(stringStream.str(), std::ios_base::binary | std::ios_base::out);
-    stringStream.str("");
+    std::string distancesFilename = "distanceValues";
+    sdfFile.open(distancesFilename, std::ios_base::binary | std::ios_base::out);
 }
 
 void Converter::computeDistance(const uint32_t &inTriangleSize)
 {
-    GLsync sync;
     sdfSize = resolution.x * resolution.y * resolution.z < MAX_SDF_SSBO_SIZE ?
                        resolution.x * resolution.y * resolution.z :
                        MAX_SDF_SSBO_SIZE;
@@ -233,13 +229,11 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
     }
     prismAABBs.unmap();
     uint32_t sdfMaxIndex = sdfSize + minIndex - 1;
-    std::vector<uint32_t> skippedIndices(0);
+    uint32_t partialySkipped = 0;
     filler.use();
     filler.bindUniform("filler", fillerValue);
     glDispatchCompute(resolution.x, resolution.y, resolution.z);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-//    sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-//    glClientWaitSync(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
     struct timeval t;
     gettimeofday(&t, NULL);
     time = (uint64_t)t.tv_sec * 1000 + t.tv_usec / 1000;
@@ -258,21 +252,17 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
             else
             {
                 kernel.bindUniformui("fullyInRange", 0);
-                skippedIndices.push_back(i);
+                ++partialySkipped;
             }
             glDispatchCompute((GLuint)pointsAmount[i].x, (GLuint)pointsAmount[i].y, (GLuint)pointsAmount[i].z);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
             kernel.unuse();
-//            sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-//            glClientWaitSync(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
         }
-        else
-            skippedIndices.push_back(i);
     }
-    std::cout << "Error:" << glGetError() << std::endl;
+    logStream << "Partially skipped prisms:" << partialySkipped << std::endl;
 }
 
-void Converter::writeFiles()
+void Converter::writeFile()
 {
     sdf.bind();
     GLfloat *sdfPointer = (GLfloat*)sdf.map(GL_READ_ONLY);
@@ -292,4 +282,39 @@ void Converter::writeFiles()
     sdfFile.close();
     data.clear();
     std::cout << realSize << std::endl;
+}
+
+glm::uvec3 Converter::computeGroups(const uint32_t &inTrianglesAmount)
+{
+    glm::uvec3 groups(1, 1, 1);
+    if(inTrianglesAmount <= MAX_WORK_GROUP_COUNT)
+        groups.z = inTrianglesAmount;
+    else
+    {
+        uint32_t divisor = MAX_WORK_GROUP_COUNT;
+        uint32_t divident = inTrianglesAmount;
+        for(short i = 0; i < 3; ++i)
+        {
+            while((divident % divisor != 0) && (divisor > 1) && (divident > MAX_WORK_GROUP_COUNT))
+                --divisor;
+            switch(i)
+            {
+                case 0:
+                    groups.z = divisor;
+                    break;
+                case 1:
+                    groups.y = divisor;
+                    break;
+                case 2:
+                    groups.x = divisor;
+                    break;
+            }
+            divident /= divisor;
+            if(divident <= MAX_WORK_GROUP_COUNT)
+                divisor = divident;
+            else
+                divisor = MAX_WORK_GROUP_COUNT;
+        }
+    }
+    return groups;
 }

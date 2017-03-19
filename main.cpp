@@ -4,8 +4,8 @@
 #include "classes/Mesh.h"
 #include "Converter.h"
 
-Mesh mesh(true);
-Mesh buddha(false);
+Mesh mesh;
+Mesh buddha;
 
 int main(int argc, char **argv) {
     glutInit(&argc, argv);
@@ -17,13 +17,14 @@ int main(int argc, char **argv) {
     glewExperimental = true;
 
     std::ios::sync_with_stdio(false);
-    mesh.loadFromOBJ("Teapot.obj");
-//    buddha.loadFromOBJ("C:\\Users\\Y500\\Documents\\Models\\Buddha_max.obj");
-    std::cout << "Buddha triangles:" << buddha.getTrianglesAmount() << std::endl;
+    mesh.loadFromOBJ("C:\\Users\\Y500\\Documents\\Models\\Dragon_max.obj", false);
+//    buddha.loadFromOBJ("C:\\Users\\Y500\\Documents\\Models\\Buddha_max.obj", false);
+    std::cout << "Triangles:" << mesh.getTrianglesAmount() << std::endl;
 
     Converter converter;
-    converter.setResolution(glm::uvec3(256));
+    converter.setResolution(glm::uvec3(200, 156, 199));
     converter.setFillerValue(1000000.0f);
+    converter.setDelta(1.0f);
     converter.loadFiller("filler.glsl");
     converter.loadModifier("modifier.glsl");
     converter.loadKernel("kernel.glsl");

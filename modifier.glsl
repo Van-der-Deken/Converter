@@ -4,7 +4,7 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 uniform vec3 shellMin;
 uniform vec3 step;
 uniform uvec3 resolution;
-uniform float epsilon;
+uniform float delta;
 
 struct Triangle
 {
@@ -40,7 +40,7 @@ layout (std140, binding = 1) buffer PrismAABBBuffer
 
 void constructPrismAABB(in Triangle t, out vec3 AABBmin, out vec3 AABBmax)
 {
-    vec3 displacement = epsilon * t.n;
+    vec3 displacement = length(step) * delta * t.n;
     vec3 plusFaceV1 = t.v1 + displacement;
     vec3 plusFaceV2 = t.v2 + displacement;
     vec3 plusFaceV3 = t.v3 + displacement;
@@ -57,7 +57,7 @@ void constructPrismAABB(in Triangle t, out vec3 AABBmin, out vec3 AABBmax)
 
 void main()
 {
-    uint index = gl_WorkGroupID.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z + gl_WorkGroupID.y * gl_WorkGroupSize.z +
+    uint index = gl_WorkGroupID.x * gl_NumWorkGroups.y * gl_NumWorkGroups.z + gl_WorkGroupID.y * gl_NumWorkGroups.z +
                  gl_WorkGroupID.z;
     Triangle triangle = Triangles[index];
     PrismAABB prismAABB = PrismAABBs[index];

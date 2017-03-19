@@ -61,17 +61,17 @@ class Converter {
         void setShellMin(const glm::vec3 &inShellMin);
         void setShellMax(const glm::vec3 &inShellMax);
         void setFillerValue(GLfloat inFillerValue);
+        void setDelta(GLfloat inDelta);
         bool loadFiller(const std::string &path);
         bool loadModifier(const std::string &path);
         bool loadKernel(const std::string &path);
         void computeDistanceField(const std::vector<Triangle> &inTriangles);
-        void computeDistanceField(const std::string &fileWithTriangles);
     private:
-        void openFiles(const uint16_t &index);
+        void openFile();
         void computeDistance(const uint32_t &inTriangleSize);
-        void writeFiles();
+        void writeFile();
+        glm::uvec3 computeGroups(const uint32_t &inTrianglesAmount);
 
-        std::stringstream stringStream;
 
         GLBuffer triangles;
         GLBuffer prismAABBs;
@@ -84,7 +84,7 @@ class Converter {
         std::ifstream trianglesFile;
         std::ofstream sdfFile;
 
-        bool ready;
+        GLfloat delta;
         uint64_t time;
         uint32_t sdfSize;
         glm::uvec3 resolution;

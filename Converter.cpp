@@ -6,7 +6,6 @@
 #include "Converter.h"
 #include <GL/glut.h>
 #include "../glm/gtc/type_ptr.inl"
-#include <sys/time.h>
 
 Converter::Converter() : logStream(std::cout.rdbuf())
 {
@@ -88,6 +87,11 @@ void Converter::setSizeFactor(uint16_t inSizeFactor)
     SIZE_FACTOR = inSizeFactor;
 }
 
+void Converter::setSdfFilename(const std::string &path)
+{
+    sdfFilename = path;
+}
+
 void Converter::setResolution(const glm::uvec3 &inResolution)
 {
     resolution = inResolution;
@@ -111,6 +115,18 @@ void Converter::setFillerValue(GLfloat inFillerValue)
 void Converter::setDelta(GLfloat inDelta)
 {
     delta = inDelta;
+}
+
+void Converter::setMaxResolution()
+{
+    glm::vec3 lengthes(shellMax.x - shellMin.x, shellMax.y - shellMin.y, shellMax.z - shellMin.z);
+    GLfloat minLength = glm::min(lengthes.x, glm::min(lengthes.y, lengthes.z));
+    lengthes /= minLength;
+    uint16_t totalParts = glm::round(lengthes.x) * glm::round(lengthes.y) * glm::round(lengthes.z);
+    if(totalParts == 0)
+        logStream << "setMaxResolution must called after setShellMin and setShellMax\n";
+    uint16_t partSize = (uint16_t)glm::floor(glm::pow((double)MAX_SDF_SSBO_SIZE / (1 * totalParts), 0.333333/*power 1/3*/));
+    resolution = (glm::uvec3(glm::round(lengthes.x), glm::round(lengthes.y), glm::round(lengthes.z)) *= partSize);
 }
 
 bool Converter::loadFiller(const std::string &path)
@@ -185,13 +201,13 @@ void Converter::computeDistanceField(const std::vector<Triangle> &inTriangles)
     openFile();
     computeDistance(trianglesSize);
     writeFile();
-    logStream << "Time, spent on SDF computing:" << time << std::endl;
+    logStream << "Time, spent on SDF computing:" << sdfGenerating.getPeriod() << " milliseconds" << std::endl;
+    logStream << "Time, spent on SDF writing:" << fileWriting.getPeriod() << " milliseconds" << std::endl;
 }
 
 void Converter::openFile()
 {
-    std::string distancesFilename = "distanceValues";
-    sdfFile.open(distancesFilename, std::ios_base::binary | std::ios_base::out);
+    sdfFile.open(sdfFilename, std::ios_base::binary | std::ios_base::out);
 }
 
 void Converter::computeDistance(const uint32_t &inTriangleSize)
@@ -234,9 +250,7 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
     filler.bindUniform("filler", fillerValue);
     glDispatchCompute(resolution.x, resolution.y, resolution.z);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-    struct timeval t;
-    gettimeofday(&t, NULL);
-    time = (uint64_t)t.tv_sec * 1000 + t.tv_usec / 1000;
+    sdfGenerating.start();
     for(uint32_t i = 0; i < inTriangleSize; ++i)
     {
         if(minIndices[i] < sdfMaxIndex)
@@ -266,9 +280,8 @@ void Converter::writeFile()
 {
     sdf.bind();
     GLfloat *sdfPointer = (GLfloat*)sdf.map(GL_READ_ONLY);
-    struct timeval t;
-    gettimeofday(&t, NULL);
-    time = (uint64_t)t.tv_sec * 1000 + t.tv_usec / 1000 - time;
+    sdfGenerating.end();
+    fileWriting.start();
     uint32_t realSize = 0;
     std::vector<GLfloat> data(0);
     for(uint32_t i = 0; i < sdfSize; ++i)
@@ -280,8 +293,9 @@ void Converter::writeFile()
     for(uint32_t i = 0; i < realSize; ++i)
         sdfFile.write(reinterpret_cast<char*>(&data[i]), sizeof(GLfloat));
     sdfFile.close();
+    fileWriting.end();
     data.clear();
-    std::cout << realSize << std::endl;
+    std::cout << "Points in SDF:" << realSize / 4 << std::endl;
 }
 
 glm::uvec3 Converter::computeGroups(const uint32_t &inTrianglesAmount)

@@ -13,6 +13,7 @@
 #include "../classes/GLTexture.h"
 #include "../classes/ShaderProgram.h"
 #include "../classes/Mesh.h"
+#include "../classes/Timer.h"
 
 struct PrismAABB
 {
@@ -57,11 +58,13 @@ class Converter {
         Converter(const std::ostream &inLogStream);
         ~Converter();
         void setSizeFactor(uint16_t inSizeFactor);
+        void setSdfFilename(const std::string &path);
         void setResolution(const glm::uvec3 &inResolution);
         void setShellMin(const glm::vec3 &inShellMin);
         void setShellMax(const glm::vec3 &inShellMax);
         void setFillerValue(GLfloat inFillerValue);
         void setDelta(GLfloat inDelta);
+        void setMaxResolution();
         bool loadFiller(const std::string &path);
         bool loadModifier(const std::string &path);
         bool loadKernel(const std::string &path);
@@ -83,9 +86,11 @@ class Converter {
 
         std::ifstream trianglesFile;
         std::ofstream sdfFile;
+        std::string sdfFilename;
 
         GLfloat delta;
-        uint64_t time;
+        Timer sdfGenerating;
+        Timer fileWriting;
         uint32_t sdfSize;
         glm::uvec3 resolution;
         glm::vec3 shellMin;

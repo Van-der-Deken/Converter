@@ -176,6 +176,8 @@ bool Converter::loadKernel(const std::string &path)
 
 void Converter::computeDistanceField(const std::vector<Triangle> &inTriangles)
 {
+    std::cout << "Resolution:" << resolution.x << "," << resolution.y << "," << resolution.z << std::endl;
+    sdfGenerating.start();
     uint16_t triangleCycles = (uint16_t)ceil((double)inTriangles.size() / MAX_TRIANGLES_SSBO_SIZE);
     uint32_t trianglesSize = triangleCycles > 1 ? MAX_TRIANGLES_SSBO_SIZE : inTriangles.size();
 
@@ -250,16 +252,15 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
     filler.bindUniform("filler", fillerValue);
     glDispatchCompute(resolution.x, resolution.y, resolution.z);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-    sdfGenerating.start();
+    kernel.use();
+    kernel.bindUniformVector(SP_UVEC3, "resolution", glm::value_ptr(resolution));
+    kernel.bindUniformVector(SP_VEC3, "shellMin", glm::value_ptr(shellMin));
+    kernel.bindUniformui("minIndex", minIndex);
+    kernel.bindUniformui("maxIndex", maxIndex);
     for(uint32_t i = 0; i < inTriangleSize; ++i)
     {
         if(minIndices[i] < sdfMaxIndex)
         {
-            kernel.use();
-            kernel.bindUniformVector(SP_UVEC3, "resolution", glm::value_ptr(resolution));
-            kernel.bindUniformVector(SP_VEC3, "shellMin", glm::value_ptr(shellMin));
-            kernel.bindUniformui("minIndex", minIndex);
-            kernel.bindUniformui("maxIndex", maxIndex);
             kernel.bindUniformui("aabbAndTriangleIndex", i);
             if(maxIndices[i] < sdfMaxIndex)
                 kernel.bindUniformui("fullyInRange", 1);
@@ -270,9 +271,9 @@ void Converter::computeDistance(const uint32_t &inTriangleSize)
             }
             glDispatchCompute((GLuint)pointsAmount[i].x, (GLuint)pointsAmount[i].y, (GLuint)pointsAmount[i].z);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-            kernel.unuse();
         }
     }
+    kernel.unuse();
     logStream << "Partially skipped prisms:" << partialySkipped << std::endl;
 }
 

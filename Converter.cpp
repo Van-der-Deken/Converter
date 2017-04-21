@@ -9,7 +9,7 @@
 
 Converter::Converter() : logStream(std::cout.rdbuf())
 {
-    SIZE_FACTOR = 4;
+    SIZE_FACTOR = 2;
     TRIANGLE_SIZE = sizeof(Triangle);
     PRISM_AABB_SIZE = sizeof(PrismAABB);
     DISTANCE_AND_COORD_SIZE = 4 * sizeof(GLfloat);
@@ -41,7 +41,7 @@ Converter::Converter() : logStream(std::cout.rdbuf())
 
 Converter::Converter(const std::ostream &inLogStream) : logStream(inLogStream.rdbuf())
 {
-    SIZE_FACTOR = 4;
+    SIZE_FACTOR = 2;
     TRIANGLE_SIZE = sizeof(Triangle);
     PRISM_AABB_SIZE = sizeof(PrismAABB);
     DISTANCE_AND_COORD_SIZE = sizeof(GLfloat);
@@ -209,7 +209,7 @@ void Converter::computeDistanceField(const std::vector<Triangle> &inTriangles)
 
 void Converter::openFile()
 {
-    sdfFile.open(sdfFilename, std::ios_base::binary | std::ios_base::out);
+    sdfFile = fopen(sdfFilename.c_str(), "wb");
 }
 
 void Converter::computeDistance(const uint32_t &inTriangleSize)
@@ -286,14 +286,27 @@ void Converter::writeFile()
     uint32_t realSize = 0;
     std::vector<GLfloat> data(0);
     for(uint32_t i = 0; i < sdfSize; ++i)
+    {
         if(sdfPointer[i * 4 + 3] != fillerValue)
-            for(short j = 0; j < 4; ++j)
-                data.push_back(sdfPointer[i * 4 + j]);
+        {
+            data.push_back(sdfPointer[i * 4]);
+            data.push_back(sdfPointer[i * 4 + 1]);
+            data.push_back(sdfPointer[i * 4 + 2]);
+            data.push_back(sdfPointer[i * 4 + 3]);
+        }
+    }
     realSize = (uint32_t)data.size();
-    sdfFile.write(reinterpret_cast<char*>(&realSize), sizeof(uint32_t));
-    for(uint32_t i = 0; i < realSize; ++i)
-        sdfFile.write(reinterpret_cast<char*>(&data[i]), sizeof(GLfloat));
-    sdfFile.close();
+    FILE* fileSDF = fopen(sdfFilename.c_str(), "wb");
+    fwrite(&realSize, sizeof(uint32_t), 1, fileSDF);
+    uint32_t start = 0;
+    int count = 0;
+    while(start != realSize)
+    {
+        count = (realSize - start) > 65536 ? 65536 : realSize - start;
+        fwrite(&data[start], sizeof(GLfloat), count, fileSDF);
+        start += count;
+    }
+    fclose(sdfFile);
     fileWriting.end();
     data.clear();
     std::cout << "Points in SDF:" << realSize / 4 << std::endl;

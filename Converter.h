@@ -85,7 +85,7 @@ class Converter {
         ShaderProgram kernel;
 
         std::ifstream trianglesFile;
-        std::ofstream sdfFile;
+        FILE* sdfFile;
         std::string sdfFilename;
 
         GLfloat delta;

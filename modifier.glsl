@@ -4,63 +4,52 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 uniform vec3 shellMin;
 uniform vec3 step;
 uniform uvec3 resolution;
-uniform float delta;
+uniform float epsilon;
 
 struct Triangle
 {
-    vec3 v1;
-    float padding3;
-    vec3 v2;
-    float padding7;
-    vec3 v3;
-    float padding11;
-    vec3 n;
-    float padding15;
+    vec4 v1;
+    vec4 v2;
+    vec4 v3;
+    vec4 n;
 };
 
-struct PrismAABB
-{
-    vec3 min;
-    float totalSize;
-    vec3 pointsAmount;
-    float minIndex;
-    vec3 step;
-    float maxIndex;
-};
-
-layout (std140, binding = 0) buffer TrianglesBuffer
+layout (std430, binding = 0) buffer TrianglesBuffer
 {
     Triangle Triangles[];
 };
 
-layout (std140, binding = 1) buffer PrismAABBBuffer
+layout (std430, binding = 1) buffer PrismAABBBuffer
 {
-    PrismAABB PrismAABBs[];
+    vec4 aabbMin[];
 };
 
 void constructPrismAABB(in Triangle t, out vec3 AABBmin, out vec3 AABBmax)
 {
-    vec3 displacement = length(step) * delta * t.n;
-    vec3 plusFaceV1 = t.v1 + displacement;
-    vec3 plusFaceV2 = t.v2 + displacement;
-    vec3 plusFaceV3 = t.v3 + displacement;
-    vec3 minusFaceV1 = t.v1 - displacement;
-    vec3 minusFaceV2 = t.v2 - displacement;
-    vec3 minusFaceV3 = t.v3 - displacement;
-    vec3 minMinusFace = min(minusFaceV1, min(minusFaceV2, minusFaceV3));
-    vec3 maxMinusFace = max(minusFaceV1, max(minusFaceV2, minusFaceV3));
-    vec3 minPlusFace = min(plusFaceV1, min(plusFaceV2, plusFaceV3));
-    vec3 maxPlusFace = max(plusFaceV1, max(plusFaceV2, plusFaceV3));
-    AABBmin = min(minMinusFace, minPlusFace);
-    AABBmax = max(maxMinusFace, maxPlusFace);
+    vec3 displacement = epsilon * t.n.xyz;
+    vec3 minPoint, maxPoint;
+    minPoint.x = min(t.v1.x, min(t.v2.x, t.v3.x));
+    minPoint.y = min(t.v1.y, min(t.v2.y, t.v3.y));
+    minPoint.z = min(t.v1.z, min(t.v2.z, t.v3.z));
+    maxPoint.x = max(t.v1.x, max(t.v2.x, t.v3.x));
+    maxPoint.y = max(t.v1.y, max(t.v2.y, t.v3.y));
+    maxPoint.z = max(t.v1.z, max(t.v2.z, t.v3.z));
+
+    vec3 plusFaceMin = minPoint + displacement;
+    vec3 plusFaceMax = maxPoint + displacement;
+    vec3 minusFaceMin = minPoint - displacement;
+    vec3 minusFaceMax = maxPoint - displacement;
+
+    AABBmin = min(plusFaceMin, minusFaceMin);
+    AABBmax = max(plusFaceMax, minusFaceMax);
 }
 
 void main()
 {
-    uint index = gl_WorkGroupID.x * gl_NumWorkGroups.y * gl_NumWorkGroups.z + gl_WorkGroupID.y * gl_NumWorkGroups.z +
+    uint index = gl_WorkGroupID.x * gl_NumWorkGroups.y * gl_NumWorkGroups.z +
+                 gl_WorkGroupID.y * gl_NumWorkGroups.z +
                  gl_WorkGroupID.z;
     Triangle triangle = Triangles[index];
-    PrismAABB prismAABB = PrismAABBs[index];
     vec3 prismAABBmin = vec3(0, 0, 0);
     vec3 prismAABBmax = vec3(0, 0, 0);
     constructPrismAABB(triangle, prismAABBmin, prismAABBmax);
@@ -70,25 +59,17 @@ void main()
     prismAABBmax = vec3(floor((prismAABBmax.x - shellMin.x) / step.x) * step.x + shellMin.x,
                         floor((prismAABBmax.y - shellMin.y) / step.y) * step.y + shellMin.y,
                         floor((prismAABBmax.z - shellMin.z) / step.z) * step.z + shellMin.z);
-    vec3 pointsAmount = vec3(abs(floor((prismAABBmax.x - shellMin.x) / step.x) -
-                                        ceil((prismAABBmin.x - shellMin.x) / step.x)),
-                             abs(floor((prismAABBmax.y - shellMin.y) / step.y) -
-                                        ceil((prismAABBmin.y - shellMin.y) / step.y)),
-                             abs(floor((prismAABBmax.z - shellMin.z) / step.z) -
-                                        ceil((prismAABBmin.z - shellMin.z) / step.z)));
-    float totalSize = pointsAmount.x * pointsAmount.y * pointsAmount.z;
-    uint minIndex = uint((prismAABBmin.x - shellMin.x) / step.x) * resolution.y * resolution.z +
-                    uint((prismAABBmin.y - shellMin.y) / step.y) * resolution.z +
-                    uint((prismAABBmin.z - shellMin.z) / step.z);
+    triangle.v1.w = abs(floor((prismAABBmax.x - shellMin.x) / step.x) -
+                        ceil((prismAABBmin.x - shellMin.x) / step.x));
+    triangle.v2.w = abs(floor((prismAABBmax.y - shellMin.y) / step.y) -
+                        ceil((prismAABBmin.y - shellMin.y) / step.y));
+    triangle.v3.w = abs(floor((prismAABBmax.z - shellMin.z) / step.z) -
+                        ceil((prismAABBmin.z - shellMin.z) / step.z));
     uint maxIndex = uint((prismAABBmax.x - shellMin.x) / step.x) * resolution.y * resolution.z +
                     uint((prismAABBmax.y - shellMin.y) / step.y) * resolution.z +
                     uint((prismAABBmax.z - shellMin.z) / step.z);
-    prismAABB.min = prismAABBmin;
-    prismAABB.pointsAmount = pointsAmount;
-    prismAABB.step = step;
-    prismAABB.totalSize = totalSize;
-    prismAABB.minIndex = minIndex;
-    prismAABB.maxIndex = maxIndex;
-    PrismAABBs[index] = prismAABB;
+    aabbMin[index] = vec4(prismAABBmin, 0.0);
+    triangle.n.w = maxIndex > (resolution.x * resolution.y * resolution.z) ? 1.0 : 0.0;
+    Triangles[index] = triangle;
     memoryBarrierBuffer();
 }

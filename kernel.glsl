@@ -3,31 +3,17 @@
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 uniform uint fullyInRange;
 uniform vec3 shellMin;
+uniform vec3 step;
 uniform uvec3 resolution;
-uniform uint minIndex;
 uniform uint maxIndex;
 uniform uint aabbAndTriangleIndex;
 
 struct Triangle
 {
-    vec3 v1;
-    float padding3;
-    vec3 v2;
-    float padding7;
-    vec3 v3;
-    float padding11;
-    vec3 n;
-    float padding15;
-};
-
-struct PrismAABB
-{
-    vec3 min;
-    float totalSize;
-    vec3 pointsAmount;
-    float minIndex;
-    vec3 step;
-    float maxIndex;
+    vec4 v1;
+    vec4 v2;
+    vec4 v3;
+    vec4 n;
 };
 
 layout (std140, binding = 0) buffer TrianglesBuffer
@@ -37,7 +23,7 @@ layout (std140, binding = 0) buffer TrianglesBuffer
 
 layout (std140, binding = 1) buffer PrismAABBBuffer
 {
-    PrismAABB PrismAABBs[];
+    vec4 aabbMin[];
 };
 
 layout (std430, binding = 2) coherent buffer SDFBuffer
@@ -58,73 +44,31 @@ float distanceToEdge(in vec3 P0, in vec3 P1, in vec3 P)
 void computeDistance(in vec3 inPoint, in uint inIndex)
 {
     Triangle triangle = Triangles[aabbAndTriangleIndex];
-    inIndex -= minIndex;
-    float distance = dot(inPoint - triangle.v1, triangle.n);
+    float distance = dot(inPoint - triangle.v1.xyz, triangle.n.xyz);
     float sgn = sign(distance);
     sgn = sgn == 0 ? 1.0 : sgn;
-    vec3 projectedPoint = inPoint - distance * triangle.n;
-    float areaQBC = 0.5 * length(cross(triangle.v2 - projectedPoint, triangle.v3 - projectedPoint));
-    float areaQCA = 0.5 * length(cross(triangle.v3 - projectedPoint, triangle.v1 - projectedPoint));
-    float areaQAB = 0.5 * length(cross(triangle.v1 - projectedPoint, triangle.v2 - projectedPoint));
-    float areaABC = 0.5 * length(cross(triangle.v2 - triangle.v1, triangle.v3 - triangle.v1));
-    float areaSummed = areaQAB + areaQBC + areaQCA;
-    float denominator = pow(length(triangle.v2 - triangle.v1), 2);
-    float uAB = dot(triangle.v2 - projectedPoint, triangle.v2 - triangle.v1) / denominator;
-    float vAB = dot(projectedPoint - triangle.v1, triangle.v2 - triangle.v1) / denominator;
-    denominator = pow(length(triangle.v3 - triangle.v2), 2);
-    float uBC = dot(triangle.v3 - projectedPoint, triangle.v3 - triangle.v2) / denominator;
-    float vBC = dot(projectedPoint - triangle.v2, triangle.v3 - triangle.v2) / denominator;
-    denominator = pow(length(triangle.v3 - triangle.v1), 2);
-    float uAC = dot(triangle.v3 - projectedPoint, triangle.v3 - triangle.v1) / denominator;
-    float vAC = dot(projectedPoint - triangle.v1, triangle.v3 - triangle.v1) / denominator;
-    if(areaABC != areaSummed)
-    {
-        if(uAB > 0 && vAB > 0)
-            distance = distanceToEdge(triangle.v1, triangle.v2, inPoint) * sgn;
-        else
-        {
-            if(uBC > 0 && vBC > 0)
-                distance = distanceToEdge(triangle.v2, triangle.v3, inPoint) * sgn;
-            else
-            {
-                if(uAC > 0 && vAC > 0)
-                    distance = distanceToEdge(triangle.v1, triangle.v3, inPoint) * sgn;
-                else
-                {
-                    float distToV1 = length(inPoint - triangle.v1);
-                    float distToV2 = length(inPoint - triangle.v2);
-                    float distToV3 = length(inPoint - triangle.v3);
-                    distance = min(distToV1, min(distToV2, distToV3)) * sgn;
-                }
-            }
-        }
-    }
+    float distToV1 = length(inPoint - triangle.v1.xyz);
+    float distToV2 = length(inPoint - triangle.v2.xyz);
+    float distToV3 = length(inPoint - triangle.v3.xyz);
+    float minDistToVertex = min(distToV1, min(distToV2, distToV3));
+    float distToE1 = distanceToEdge(triangle.v1.xyz, triangle.v2.xyz, inPoint);
+    float distToE2 = distanceToEdge(triangle.v2.xyz, triangle.v3.xyz, inPoint);
+    float distToE3 = distanceToEdge(triangle.v1.xyz, triangle.v3.xyz, inPoint);
+    float minDistToEdge = min(distToE1, min(distToE2, distToE3));
+    distance = min(abs(distance), min(minDistToVertex, minDistToEdge)) * sgn;
     float distValue = SDF[inIndex].w;
-    if(abs(distance) < abs(distValue))
-    {
-        SDF[inIndex] = vec4(inPoint.x, inPoint.y, inPoint.z, distance);
-        memoryBarrierBuffer();
-    }
+    SDF[inIndex] = vec4(inPoint.x, inPoint.y, inPoint.z, min(abs(distance), abs(distValue)));
+    memoryBarrierBuffer();
 }
 
 void main()
 {
-    PrismAABB prismAABB = PrismAABBs[aabbAndTriangleIndex];
-//    uint pointShellIndex = gl_WorkGroupID.x * gl_WorkGroupID.y * gl_WorkGroupID.z;
-    uint pointShellIndex = gl_WorkGroupID.x * gl_NumWorkGroups.y * gl_NumWorkGroups.z +
-                           gl_WorkGroupID.y * gl_NumWorkGroups.z +
-                           gl_WorkGroupID.z;
-    uint pointsX = uint(floor(pointShellIndex / (prismAABB.pointsAmount.y * prismAABB.pointsAmount.z)));
-    uint pointsY = uint(floor((pointShellIndex - pointsX * prismAABB.pointsAmount.y * prismAABB.pointsAmount.z) /
-                                prismAABB.pointsAmount.z));
-    uint pointsZ = pointShellIndex - pointsX * uint(prismAABB.pointsAmount.y * prismAABB.pointsAmount.z) -
-                                     pointsY * uint(prismAABB.pointsAmount.z);
-    vec3 point = vec3(prismAABB.min.x + pointsX * prismAABB.step.x,
-                      prismAABB.min.y + pointsY * prismAABB.step.y,
-                      prismAABB.min.z + pointsZ * prismAABB.step.z);
-    uint index = uint((point.x - shellMin.x) / prismAABB.step.x) * resolution.y * resolution.z +
-                 uint((point.y - shellMin.y) / prismAABB.step.y) * resolution.z +
-                 uint((point.z - shellMin.z) / prismAABB.step.z);
+    vec3 point = vec3(aabbMin[aabbAndTriangleIndex]) + vec3(step.x * gl_WorkGroupID.x,
+                                                            step.y * gl_WorkGroupID.y,
+                                                            step.z * gl_WorkGroupID.z);
+    uint index = uint((point.x - shellMin.x) / step.x) * resolution.y * resolution.z +
+                 uint((point.y - shellMin.y) / step.y) * resolution.z +
+                 uint((point.z - shellMin.z) / step.z);
     if(fullyInRange == 1)
         computeDistance(point, index);
     else

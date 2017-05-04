@@ -1,112 +1,78 @@
-//
-// Created by Y500 on 08.03.2017.
-//
+#ifndef CONVERTER_H_INCLUDED
+#define CONVERTER_H_INCLUDED
 
-#ifndef CONVERTER_H
-#define CONVERTER_H
-
-#include <iosfwd>
-#include <sstream>
 #include <fstream>
-#include <bits/unique_ptr.h>
-#include "../classes/GLBuffer.h"
-#include "../classes/GLTexture.h"
-#include "../classes/ShaderProgram.h"
-#include "../classes/Mesh.h"
-#include "../classes/Timer.h"
+#include <vector>
+#include "../glm/glm.hpp"
+#include "classes/ShaderProgram.h"
+#include "classes/GLBuffer.h"
+#include "ITrianglesLoader.h"
+#include "IStopwatch.h"
 
-struct PrismAABB
+namespace conv
 {
-    GLfloat min[3];
-    GLfloat totalSize;
-    GLfloat pointsAmount[3];
-    GLfloat minIndex;
-    GLfloat step[3];
-    GLfloat maxIndex;
-
-    PrismAABB()
+    struct Initializer
     {
-        for(int i = 0; i < 3; ++i)
-        {
-            min[i] = 0;
-            pointsAmount[i] = 0;
-            step[i] = 0;
-        }
-        totalSize = 0;
-        minIndex = 0;
-        maxIndex = 0;
-    }
+        GLfloat sizeFactor = 2.0f;
+        std::string SDFfilename = "";
+        glm::uvec3 resolution{0};
+        ITrianglesLoader* triaglesLoader = nullptr;
+        IStopwatch* stopwatch = nullptr;
+        GLfloat fillerValue = 0.0f;
+        GLfloat delta = 0.0f;
+        std::string fillerPath = "";
+        std::string modifierPath = "";
+        std::string kernelPath = "";
+    };
 
-    PrismAABB& operator=(const PrismAABB &lValue)
+    class Converter
     {
-        for(int i = 0; i < 3; ++i)
-        {
-            min[i] = lValue.min[i];
-            pointsAmount[i] = lValue.pointsAmount[i];
-            step[i] = lValue.step[i];
-        }
-        totalSize = lValue.totalSize;
-        minIndex = lValue.minIndex;
-        maxIndex = lValue.maxIndex;
-        return *this;
-    }
-};
+        public:
+            Converter();
+            Converter(const std::ostream &inLogStream);
+            ~Converter();
+            void initialize(const std::string &paramFilename);
+            void initialize(const Initializer &initializer);
+            void compute();
+        private:
+            void writeFile();
+            glm::uvec3 computeGroups(const uint32_t &inTrianglesAmount);
+            GLfloat maxSizeFactor();
+            glm::uvec3 maxResolution();
 
-class Converter {
-    public:
-        Converter();
-        Converter(const std::ostream &inLogStream);
-        ~Converter();
-        void setSizeFactor(uint16_t inSizeFactor);
-        void setSdfFilename(const std::string &path);
-        void setResolution(const glm::uvec3 &inResolution);
-        void setShellMin(const glm::vec3 &inShellMin);
-        void setShellMax(const glm::vec3 &inShellMax);
-        void setFillerValue(GLfloat inFillerValue);
-        void setDelta(GLfloat inDelta);
-        void setMaxResolution();
-        bool loadFiller(const std::string &path);
-        bool loadModifier(const std::string &path);
-        bool loadKernel(const std::string &path);
-        void computeDistanceField(const std::vector<Triangle> &inTriangles);
-    private:
-        void openFile();
-        void computeDistance(const uint32_t &inTriangleSize);
-        void writeFile();
-        glm::uvec3 computeGroups(const uint32_t &inTrianglesAmount);
+            bool unconstructed = true;
+            bool uninitialized = true;
 
+            GLBuffer triangles{GL_SHADER_STORAGE_BUFFER, std::cout};
+            GLBuffer prismAABBs{GL_SHADER_STORAGE_BUFFER, std::cout};
+            GLBuffer sdf{GL_SHADER_STORAGE_BUFFER, std::cout};
 
-        GLBuffer triangles;
-        GLBuffer prismAABBs;
-        GLBuffer sdf;
+            ShaderProgram filler{std::cout};
+            ShaderProgram modifier{std::cout};
+            ShaderProgram kernel{std::cout};
 
-        ShaderProgram filler;
-        ShaderProgram modifier;
-        ShaderProgram kernel;
+            ITrianglesLoader* loader = nullptr;
+            bool loaderCreated = false;
+            FILE* sdfFile = nullptr;
+            std::string sdfFilename = "";
+            uint32_t SDFSize = 0;
 
-        std::ifstream trianglesFile;
-        FILE* sdfFile;
-        std::string sdfFilename;
+            GLfloat delta = 0.0f;
+            glm::uvec3 resolution{0};
+            GLfloat fillerValue = 0.0f;
+            std::ostream logStream{std::cout.rdbuf()};
+            IStopwatch* stopwatch = nullptr;
 
-        GLfloat delta;
-        Timer sdfGenerating;
-        Timer fileWriting;
-        uint32_t sdfSize;
-        glm::uvec3 resolution;
-        glm::vec3 shellMin;
-        glm::vec3 shellMax;
-        GLfloat fillerValue;
-        std::ostream logStream;
+            uint32_t MAX_ALLOWED_SSBO_SIZE = 0;
+            uint32_t MAX_TRIANGLES_SSBO_SIZE = 0;
+            uint32_t MAX_PRISM_AABB_SSBO_SIZE = 0;
+            uint32_t MAX_SDF_SSBO_SIZE = 0;
+            uint16_t MAX_WORK_GROUP_COUNT = 0;
+            uint16_t TRIANGLE_SIZE = sizeof(ModelTriangle);
+            uint16_t PRISM_AABB_SIZE = sizeof(glm::vec4);
+            uint16_t SDF_ELEMENT_SIZE = 4 * sizeof(GLfloat);
+            GLfloat SIZE_FACTOR = 2.0f;
+    };
+}
 
-        uint32_t MAX_TRIANGLES_SSBO_SIZE;
-        uint32_t MAX_PRISM_AABB_SSBO_SIZE;
-        uint32_t MAX_SDF_SSBO_SIZE;
-        uint16_t MAX_WORK_GROUP_COUNT;
-        uint16_t TRIANGLE_SIZE;
-        uint16_t PRISM_AABB_SIZE;
-        uint16_t DISTANCE_AND_COORD_SIZE;
-        uint16_t SIZE_FACTOR;
-};
-
-
-#endif //CONVERTER_H
+#endif // CONVERTER_H_INCLUDED

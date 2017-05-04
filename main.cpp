@@ -3,82 +3,68 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include "classes/Mesh.h"
+#include <memory>
 #include "Converter.h"
+#include "ObjTrianglesLoader.h"
+#include "MinGWStopwatch.h"
 
-struct Initializer
-{
-    std::string modelPath = "";
-    bool withTexCoords = false;
-    std::string sdfPath = "";
-    GLfloat delta = 0.f;
-    GLfloat shellDisplacement = 0.f;
-    glm::uvec3 resolution = glm::uvec3(0);
-    bool filled = false;
-};
-
-Mesh mesh;
-Timer modelLoading;
-Initializer initializer;
-
-void loadParameters()
-{
-    std::ifstream parametersFile("converter.parm");
-    std::string line;
-    std::map<std::string, std::string> parameters;
-    parameters["Model path"] = "";
-    parameters["Model with UVs"] = "";
-    parameters["SDF path"] = "";
-    parameters["Delta"] = "";
-    parameters["Shell displacement"] = "";
-    parameters["Resolution"] = "";
-    char delimeter = ':';
-    size_t pos = 0;
-    GLfloat value;
-    glm::uvec3 uvalue;
-    bool bvalue;
-    char rubbish[2];
-    while(std::getline(parametersFile, line))
-    {
-        pos = line.find(delimeter);
-        if(parameters.count(line.substr(0, pos)) == 0)
-        {
-            std::cout << "Unknown key:" << line.substr(0, pos) << std::endl;
-            parametersFile.close();
-            return;
-        }
-        else
-            parameters[line.substr(0, pos)] = line.substr(pos + 1);
-    }
-    parametersFile.close();
-    initializer.modelPath = parameters["Model path"];
-    initializer.sdfPath = parameters["SDF path"];
-    std::istringstream stream(parameters["Delta"]);
-    stream >> value;
-    initializer.delta = value;
-    stream.str(parameters["Model with UVs"]);
-    stream.clear();
-    stream >> std::boolalpha >> bvalue;
-    initializer.withTexCoords = bvalue;
-    stream.str(parameters["Shell displacement"]);
-    stream.clear();
-    stream >> value;
-    initializer.shellDisplacement = value;
-    stream.str(parameters["Resolution"]);
-    stream.clear();
-    stream >> uvalue.x >> rubbish[0] >> uvalue.y >> rubbish[1] >> uvalue.z;
-    initializer.resolution = uvalue;
-    initializer.filled = true;
-}
+//void Converter::initialize(const std::string &paramFilename)
+//{
+//    if(unconstructed)
+//        return;
+//    std::ifstream parametersFile(paramFilename);
+//    std::string line;
+//    std::map<std::string, std::string> parameters;
+//    parameters["Model path"] = "";
+//    parameters["Size factor"] = "";
+//    parameters["SDF path"] = "";
+//    parameters["Resolution"] = "";
+//    parameters["Loader type"] = "";
+//    parameters["Filler value"] = "";
+//    parameters["Delta"] = "";
+//    parameters["Path to filler shader"] = "";
+//    parameters["Path to modifier shader"] = "";
+//    parameters["Path to kernel shader"] = "";
+//    char delimeter = ':';
+//    size_t pos = 0;
+//    char rubbish[2];
+//    std::stringstream source;
+//    Initializer initializer;
+//    while(std::getline(parametersFile, line))
+//    {
+//        pos = line.find(delimeter);
+//        if(parameters.count(line.substr(0, pos)) == 0)
+//        {
+//            std::cout << "Unknown key:" << line.substr(0, pos) << std::endl;
+//            parametersFile.close();
+//            return;
+//        }
+//        else
+//            parameters[line.substr(0, pos)] = line.substr(pos + 1);
+//    }
+//    parametersFile.close();
+//    initializer.sizeFactor = std::stof(parameters["Size factor"]);
+//    initializer.SDFfilename = parameters["SDF path"];
+//    source.str(parameters["Resolution"]);
+//    source >> initializer.resolution.x >> rubbish[0]
+//           >> initializer.resolution.y >> rubbish[1]
+//           >> initializer.resolution.z;
+//    if(parameters["Loader type"] == "Obj Loader")
+//        initializer.triaglesLoader = new ObjTrianglesLoader;
+//    else
+//        return;
+//    loaderCreated = true;
+//    initializer.triaglesLoader->setFilename(parameters["Model path"]);
+//    initializer.fillerValue = std::stof(parameters["Filler value"]);
+//    initializer.delta = std::stof(parameters["Delta"]);
+//    initializer.fillerPath = parameters["Path to filler shader"];
+//    initializer.modifierPath = parameters["Path to modifier shader"];
+//    initializer.kernelPath = parameters["Path to kernel shader"];
+//    initialize(initializer);
+//}
 
 int main(int argc, char **argv) {
     std::ios::sync_with_stdio(false);
-    loadParameters();
-    if(!initializer.filled)
-    {
-        std::cout << "Initializer struct incorrect\n";
-        return 1;
-    }
 
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGBA | GLUT_ALPHA | GLUT_DOUBLE);
@@ -87,28 +73,25 @@ int main(int argc, char **argv) {
     glewInit();
     glewExperimental = true;
 
-    modelLoading.start();
-    mesh.loadFromOBJ(initializer.modelPath, initializer.withTexCoords);
-    modelLoading.end();
-    std::cout << "Triangles:" << mesh.getTrianglesAmount() << std::endl;
-    std::cout << "Time, spent on model loading:" << modelLoading.getPeriod() << " milliseconds" << std::endl;
-
-    Converter converter;
-    converter.setFillerValue(1000000.0f);
-    converter.setDelta(initializer.delta);
-    converter.setSdfFilename(initializer.sdfPath);
-    converter.loadFiller("filler.glsl");
-    converter.loadModifier("modifier.glsl");
-    converter.loadKernel("kernel.glsl");
-    v shellMin = mesh.getMinAABB(initializer.shellDisplacement);
-    v shellMax = mesh.getMaxAABB(initializer.shellDisplacement);
-    converter.setShellMin(glm::vec3(shellMin.x, shellMin.y, shellMin.z));
-    converter.setShellMax(glm::vec3(shellMax.x, shellMax.y, shellMax.z));
-    if(initializer.resolution.x == 0)
-        converter.setMaxResolution();
-    else
-        converter.setResolution(initializer.resolution);
-    converter.computeDistanceField(mesh.getTriangles());
+    conv::Initializer initializer;
+    initializer.SDFfilename = "woman.sdfm";
+    std::unique_ptr<conv::ITrianglesLoader> loader(new conv::ObjTrianglesLoader("C:\\Users\\Y500\\Documents\\Models\\Buddha_max.obj"));
+    initializer.triaglesLoader = loader.get();
+    std::unique_ptr<conv::IStopwatch> stopwatch(new conv::MinGWStopwatch);
+    initializer.stopwatch = stopwatch.get();
+    initializer.fillerValue = 1000000.0f;
+    initializer.delta = 1.0f;
+    initializer.fillerPath = "filler.glsl";
+    initializer.modifierPath = "modifier.glsl";
+    initializer.kernelPath = "kernel.glsl";
+    conv::Converter converter(std::cout);
+    converter.initialize(initializer);
+    converter.compute();
+    auto laps = stopwatch->getLaps();
+    std::cout << "Loading model: " << laps[0] << " milliseconds\n"
+              << "Preparing for computations: " << laps[1] << " milliseconds\n"
+              << "Computing SDF: " << laps[2] << " milliseconds\n"
+              << "Writing SDF to file: " << laps[3] << " milliseconds\n";
 
     return 0;
 }

@@ -31,7 +31,6 @@ namespace conv
             Converter();
             Converter(const std::ostream &inLogStream);
             ~Converter();
-            void initialize(const std::string &paramFilename);
             void initialize(const Initializer &initializer);
             void compute();
         private:

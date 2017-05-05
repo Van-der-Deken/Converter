@@ -46,6 +46,7 @@ void ObjTrianglesLoader::load()
             triangles.push_back(triangle);
         }
     }
+    objFile.close();
 }
 
 std::vector<ModelTriangle> ObjTrianglesLoader::getTriangles()

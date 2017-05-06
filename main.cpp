@@ -1,8 +1,6 @@
 #include <GL/glew.h>
 #include <GL/glut.h>
 #include <iostream>
-#include <fstream>
-#include <sstream>
 #include <memory>
 #include "Converter.h"
 #include "ObjTrianglesLoader.h"
@@ -88,10 +86,26 @@ int main(int argc, char **argv) {
     converter.initialize(initializer);
     converter.compute();
     auto laps = stopwatch->getLaps();
-    std::cout << "Loading model: " << laps[0] << " milliseconds\n"
-              << "Preparing for computations: " << laps[1] << " milliseconds\n"
-              << "Computing SDF: " << laps[2] << " milliseconds\n"
-              << "Writing SDF to file: " << laps[3] << " milliseconds\n";
+    for(uint16_t i = 0; i < laps.size(); ++i)
+    {
+        switch(i)
+        {
+            case 0:
+                std::cout << "Loading model: " << laps[0] << " milliseconds\n";
+                break;
+            case 1:
+                std::cout << "Preparing for computations: " << laps[1] << " milliseconds\n";
+                break;
+            case 2:
+                std::cout << "Computing SDF: " << laps[2] << " milliseconds\n";
+                break;
+            case 3:
+                std::cout << "Writing SDF to file: " << laps[3] << " milliseconds\n";
+                break;
+            default:
+                std::cout << "Unknown lap description\n";
+        }
+    }
 
     return 0;
 }

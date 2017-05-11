@@ -31,8 +31,9 @@ namespace conv
             Converter();
             Converter(const std::ostream &inLogStream);
             ~Converter();
-            void initialize(Initializer &initializer);
+            void initialize(const Initializer &initializer);
             void compute();
+            glm::uvec3 getResolution();
         private:
             void writeFile();
             glm::uvec3 computeGroups(const uint32_t &inTrianglesAmount);
@@ -50,7 +51,6 @@ namespace conv
             ShaderProgram modifier{std::cout};
             ShaderProgram kernel{std::cout};
 
-            bool loaderCreated = false;
             FILE* sdfFile = nullptr;
             uint32_t SDFSize = 0;
             std::ostream logStream{std::cout.rdbuf()};

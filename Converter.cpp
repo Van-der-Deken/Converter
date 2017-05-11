@@ -73,7 +73,7 @@ Converter::~Converter()
     kernel.deleteProgram();
 }
 
-void Converter::initialize(Initializer &initializer)
+void Converter::initialize(const Initializer &initializer)
 {
     if(unconstructed)
         return;
@@ -193,6 +193,11 @@ void Converter::compute()
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     }
     writeFile();
+}
+
+glm::uvec3 Converter::getResolution()
+{
+    return parameters.resolution;
 }
 
 void Converter::writeFile()

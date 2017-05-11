@@ -106,6 +106,8 @@ int main(int argc, char **argv) {
                 std::cout << "Unknown lap description\n";
         }
     }
+    glm::uvec3 resolution = converter.getResolution();
+    std::cout << "Resolution: " << resolution.x << "," << resolution.y << "," << resolution.z << std::endl;
 
     return 0;
 }

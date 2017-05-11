@@ -16,7 +16,7 @@ namespace conv
         GLfloat sizeFactor = 2.0f;
         std::string SDFfilename = "";
         glm::uvec3 resolution{0};
-        ITrianglesLoader* triaglesLoader = nullptr;
+        ITrianglesLoader* trianglesLoader = nullptr;
         IStopwatch* stopwatch = nullptr;
         GLfloat fillerValue = 0.0f;
         GLfloat delta = 0.0f;
@@ -31,7 +31,7 @@ namespace conv
             Converter();
             Converter(const std::ostream &inLogStream);
             ~Converter();
-            void initialize(const Initializer &initializer);
+            void initialize(Initializer &initializer);
             void compute();
         private:
             void writeFile();
@@ -50,17 +50,11 @@ namespace conv
             ShaderProgram modifier{std::cout};
             ShaderProgram kernel{std::cout};
 
-            ITrianglesLoader* loader = nullptr;
             bool loaderCreated = false;
             FILE* sdfFile = nullptr;
-            std::string sdfFilename = "";
             uint32_t SDFSize = 0;
-
-            GLfloat delta = 0.0f;
-            glm::uvec3 resolution{0};
-            GLfloat fillerValue = 0.0f;
             std::ostream logStream{std::cout.rdbuf()};
-            IStopwatch* stopwatch = nullptr;
+            Initializer parameters;
 
             uint32_t MAX_ALLOWED_SSBO_SIZE = 0;
             uint32_t MAX_TRIANGLES_SSBO_SIZE = 0;
@@ -70,7 +64,6 @@ namespace conv
             uint16_t TRIANGLE_SIZE = sizeof(ModelTriangle);
             uint16_t PRISM_AABB_SIZE = sizeof(glm::vec4);
             uint16_t SDF_ELEMENT_SIZE = 4 * sizeof(GLfloat);
-            GLfloat SIZE_FACTOR = 2.0f;
     };
 }
 

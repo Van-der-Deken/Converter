@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
     conv::Initializer initializer;
     initializer.SDFfilename = "woman.sdfm";
     std::unique_ptr<conv::ITrianglesLoader> loader(new conv::ObjTrianglesLoader("C:\\Users\\Y500\\Documents\\Models\\Buddha_max.obj"));
-    initializer.triaglesLoader = loader.get();
+    initializer.trianglesLoader = loader.get();
     std::unique_ptr<conv::IStopwatch> stopwatch(new conv::MinGWStopwatch);
     initializer.stopwatch = stopwatch.get();
     initializer.fillerValue = 1000000.0f;

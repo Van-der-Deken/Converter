@@ -28,9 +28,6 @@ Converter::Converter()
     MAX_WORK_GROUP_COUNT = (uint16_t)value;
     glGetIntegerv(GL_MAX_SHADER_STORAGE_BLOCK_SIZE, &value);
     MAX_ALLOWED_SSBO_SIZE = (uint32_t)value;
-    MAX_TRIANGLES_SSBO_SIZE = (uint32_t)value / (SIZE_FACTOR * TRIANGLE_SIZE);
-    MAX_PRISM_AABB_SSBO_SIZE = (uint32_t)value / (SIZE_FACTOR * PRISM_AABB_SIZE);
-    MAX_SDF_SSBO_SIZE = (uint32_t)value / (SIZE_FACTOR * SDF_ELEMENT_SIZE);
     unconstructed = false;
 }
 
@@ -55,9 +52,6 @@ Converter::Converter(const std::ostream &inLogStream) : logStream(inLogStream.rd
     MAX_WORK_GROUP_COUNT = (uint16_t)value;
     glGetIntegerv(GL_MAX_SHADER_STORAGE_BLOCK_SIZE, &value);
     MAX_ALLOWED_SSBO_SIZE = (uint32_t)value;
-    MAX_TRIANGLES_SSBO_SIZE = (uint32_t)value / (SIZE_FACTOR * TRIANGLE_SIZE);
-    MAX_PRISM_AABB_SSBO_SIZE = (uint32_t)value / (SIZE_FACTOR * PRISM_AABB_SIZE);
-    MAX_SDF_SSBO_SIZE = (uint32_t)value / (SIZE_FACTOR * SDF_ELEMENT_SIZE);
 
     triangles.setErrorStream(logStream);
     prismAABBs.setErrorStream(logStream);
@@ -77,37 +71,33 @@ Converter::~Converter()
     filler.deleteProgram();
     modifier.deleteProgram();
     kernel.deleteProgram();
-
-    if(loaderCreated)
-        delete loader;
 }
 
-void Converter::initialize(const Initializer &initializer)
+void Converter::initialize(Initializer &initializer)
 {
     if(unconstructed)
         return;
-    SIZE_FACTOR = initializer.sizeFactor == 0 ? maxSizeFactor() : initializer.sizeFactor;
-    if(SIZE_FACTOR <= 1.0f)
+    parameters = initializer;
+    if(parameters.sizeFactor == 0)
+        parameters.sizeFactor = maxSizeFactor();
+    if(parameters.sizeFactor <= 1.0f)
     {
-        logStream << "Size factor " << SIZE_FACTOR
+        logStream << "Size factor " << parameters.sizeFactor
                   << " less than or equal to 1. Set to default value 2\n";
-        SIZE_FACTOR = 2.0f;
+        parameters.sizeFactor = 2.0f;
     }
-    sdfFilename = initializer.SDFfilename;
-    resolution = initializer.resolution;
-    loader = initializer.triaglesLoader;
-    stopwatch = initializer.stopwatch;
-    fillerValue = initializer.fillerValue;
-    delta = initializer.delta;
-    if(!filler.loadShaderFromFile(initializer.fillerPath, GL_COMPUTE_SHADER))
+    MAX_TRIANGLES_SSBO_SIZE = MAX_ALLOWED_SSBO_SIZE / (parameters.sizeFactor * TRIANGLE_SIZE);
+    MAX_PRISM_AABB_SSBO_SIZE = MAX_ALLOWED_SSBO_SIZE / (parameters.sizeFactor * PRISM_AABB_SIZE);
+    MAX_SDF_SSBO_SIZE = MAX_ALLOWED_SSBO_SIZE / (parameters.sizeFactor * SDF_ELEMENT_SIZE);
+    if(!filler.loadShaderFromFile(parameters.fillerPath, GL_COMPUTE_SHADER))
         filler.printError();
     if(!filler.link())
         filler.printError();
-    if(!modifier.loadShaderFromFile(initializer.modifierPath, GL_COMPUTE_SHADER))
+    if(!modifier.loadShaderFromFile(parameters.modifierPath, GL_COMPUTE_SHADER))
         modifier.printError();
     if(!modifier.link())
         modifier.printError();
-    if(!kernel.loadShaderFromFile(initializer.kernelPath, GL_COMPUTE_SHADER))
+    if(!kernel.loadShaderFromFile(parameters.kernelPath, GL_COMPUTE_SHADER))
         kernel.printError();
     if(!kernel.link())
         kernel.printError();
@@ -121,19 +111,19 @@ void Converter::compute()
         logStream << "You must call initialize() before calling compute\n";
         return;
     }
-    if(stopwatch != nullptr)
-        stopwatch->start();
-    if(loader == nullptr)
+    if(parameters.stopwatch != nullptr)
+        parameters.stopwatch->start();
+    if(parameters.trianglesLoader == nullptr)
     {
         logStream << "Model file loader not specified. Terminating\n";
         return;
     }
     else
-        loader->load();
-    if(stopwatch != nullptr)
-        stopwatch->lap();
+        parameters.trianglesLoader->load();
+    if(parameters.stopwatch != nullptr)
+        parameters.stopwatch->lap();
 
-    auto modelTriangles = loader->getTriangles();
+    auto modelTriangles = parameters.trianglesLoader->getTriangles();
     uint32_t trianglesSSBOSize = modelTriangles.size() < MAX_TRIANGLES_SSBO_SIZE ? modelTriangles.size() : MAX_TRIANGLES_SSBO_SIZE;
     auto startPosition = modelTriangles.begin();
 
@@ -145,31 +135,31 @@ void Converter::compute()
     prismAABBs.data(PRISM_AABB_SIZE * trianglesSSBOSize, NULL, GL_DYNAMIC_DRAW);
     prismAABBs.bindBase(1);
 
-    if(resolution.x == 0)
-        resolution = maxResolution();
-    glm::vec3 shellMin = loader->getAABBMin();
-    glm::vec3 shellMax = loader->getAABBMax();
-    glm::vec3 step((shellMax.x - shellMin.x) / resolution.x,
-                   (shellMax.y - shellMin.y) / resolution.y,
-                   (shellMax.z - shellMin.z) / resolution.z);
-    GLfloat epsilon = glm::length(step) * delta;
-    GLuint maxIndex = resolution.x * resolution.y * resolution.z;
+    if(parameters.resolution.x == 0)
+        parameters.resolution = maxResolution();
+    glm::vec3 shellMin = parameters.trianglesLoader->getAABBMin();
+    glm::vec3 shellMax = parameters.trianglesLoader->getAABBMax();
+    glm::vec3 step((shellMax.x - shellMin.x) / parameters.resolution.x,
+                   (shellMax.y - shellMin.y) / parameters.resolution.y,
+                   (shellMax.z - shellMin.z) / parameters.resolution.z);
+    GLfloat epsilon = glm::length(step) * parameters.delta;
+    GLuint maxIndex = parameters.resolution.x * parameters.resolution.y * parameters.resolution.z;
 
     modifier.use();
     modifier.bindUniformVector(UTypes::VEC3, "shellMin", glm::value_ptr(shellMin));
     modifier.bindUniformVector(UTypes::VEC3, "step", glm::value_ptr(step));
-    modifier.bindUniformVector(UTypes::UVEC3, "resolution", glm::value_ptr(resolution));
+    modifier.bindUniformVector(UTypes::UVEC3, "resolution", glm::value_ptr(parameters.resolution));
     modifier.bindUniform("epsilon", epsilon);
 
     glm::uvec3 groups = computeGroups(trianglesSSBOSize);
-    if(stopwatch != nullptr)
-        stopwatch->lap();
+    if(parameters.stopwatch != nullptr)
+        parameters.stopwatch->lap();
     glDispatchCompute(groups.x, groups.y, groups.z);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-    SDFSize = resolution.x * resolution.y * resolution.z < MAX_SDF_SSBO_SIZE ?
-                       resolution.x * resolution.y * resolution.z :
-                       MAX_SDF_SSBO_SIZE;
+    SDFSize = parameters.resolution.x * parameters.resolution.y * parameters.resolution.z < MAX_SDF_SSBO_SIZE ?
+              parameters.resolution.x * parameters.resolution.y * parameters.resolution.z :
+              MAX_SDF_SSBO_SIZE;
     sdf.bind();
     sdf.data(SDFSize * SDF_ELEMENT_SIZE, NULL, GL_DYNAMIC_READ);
     sdf.bindBase(2);
@@ -185,12 +175,12 @@ void Converter::compute()
     triangles.unmap();
 
     filler.use();
-    filler.bindUniform("filler", fillerValue);
-    glDispatchCompute(resolution.x, resolution.y, resolution.z);
+    filler.bindUniform("filler", parameters.fillerValue);
+    glDispatchCompute(parameters.resolution.x, parameters.resolution.y, parameters.resolution.z);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
     kernel.use();
-    kernel.bindUniformVector(UTypes::UVEC3, "resolution", glm::value_ptr(resolution));
+    kernel.bindUniformVector(UTypes::UVEC3, "resolution", glm::value_ptr(parameters.resolution));
     kernel.bindUniformVector(UTypes::VEC3, "shellMin", glm::value_ptr(shellMin));
     kernel.bindUniformVector(UTypes::VEC3, "step", glm::value_ptr(step));
     kernel.bindUniformui("maxIndex", maxIndex);
@@ -207,16 +197,16 @@ void Converter::compute()
 
 void Converter::writeFile()
 {
-    sdfFile = fopen(sdfFilename.c_str(), "wb");
+    sdfFile = fopen(parameters.SDFfilename.c_str(), "wb");
     sdf.bind();
     GLfloat *sdfPointer = (GLfloat*)sdf.map(GL_READ_ONLY);
-    if(stopwatch != nullptr)
-        stopwatch->lap();
+    if(parameters.stopwatch != nullptr)
+        parameters.stopwatch->lap();
     uint32_t realSize = 0;
     std::vector<GLfloat> data(0);
     for(uint32_t i = 0; i < SDFSize; ++i)
     {
-        if(sdfPointer[i * 4 + 3] != fillerValue)
+        if(sdfPointer[i * 4 + 3] != parameters.fillerValue)
         {
             data.push_back(sdfPointer[i * 4]);
             data.push_back(sdfPointer[i * 4 + 1]);
@@ -225,20 +215,19 @@ void Converter::writeFile()
         }
     }
     realSize = (uint32_t)data.size();
-    FILE* fileSDF = fopen(sdfFilename.c_str(), "wb");
-    fwrite(&realSize, sizeof(uint32_t), 1, fileSDF);
+    fwrite(&realSize, sizeof(uint32_t), 1, sdfFile);
     uint32_t start = 0;
     int count = 0;
     while(start != realSize)
     {
         count = (realSize - start) > 65536 ? 65536 : realSize - start;
-        fwrite(&data[start], sizeof(GLfloat), count, fileSDF);
+        fwrite(&data[start], sizeof(GLfloat), count, sdfFile);
         start += count;
     }
     fclose(sdfFile);
     data.clear();
-    if(stopwatch != nullptr)
-        stopwatch->lap();
+    if(parameters.stopwatch != nullptr)
+        parameters.stopwatch->lap();
 }
 
 glm::uvec3 Converter::computeGroups(const uint32_t& inTrianglesAmount)
@@ -285,8 +274,8 @@ GLfloat Converter::maxSizeFactor()
 
 glm::uvec3 Converter::maxResolution()
 {
-    glm::vec3 shellMin = loader->getAABBMin();
-    glm::vec3 shellMax = loader->getAABBMax();
+    glm::vec3 shellMin = parameters.trianglesLoader->getAABBMin();
+    glm::vec3 shellMax = parameters.trianglesLoader->getAABBMax();
     glm::vec3 lengthes(shellMax.x - shellMin.x, shellMax.y - shellMin.y, shellMax.z - shellMin.z);
     GLfloat minLength = glm::min(lengthes.x, glm::min(lengthes.y, lengthes.z));
     lengthes /= minLength;

@@ -1,6 +1,10 @@
-Model path:C:\\Users\\Y500\\Documents\\Models\\Busty_woman.obj
-Model with UVs:true
+Model path:C:\\Users\\Y500\\Documents\\Models\\Buddha_max.obj
+Size factor:2.0
 SDF path:woman.sdfm
-Delta:1.0
-Shell displacement:1.0
 Resolution:0,0,0
+Loader type:Obj Loader
+Filler value:1000000.0
+Delta:1.0
+Path to filler shader:filler.glsl
+Path to modifier shader:modifier.glsl
+Path to kernel shader:kernel.glsl

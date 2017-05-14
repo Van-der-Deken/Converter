@@ -4,12 +4,11 @@
 using namespace conv;
 
 ObjTrianglesLoader::ObjTrianglesLoader(const std::string &path) : ITrianglesLoader(path)
-{
-    objFile.open(filepath);
-}
+{}
 
 void ObjTrianglesLoader::load()
 {
+    objFile.open(filepath);
     std::string line = "";
     ModelTriangle triangle;
     while(std::getline(objFile, line))

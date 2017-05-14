@@ -78,8 +78,6 @@ void Converter::initialize(const Initializer &initializer)
     if(unconstructed)
         return;
     parameters = initializer;
-    if(parameters.sizeFactor == 0)
-        parameters.sizeFactor = maxSizeFactor();
     if(parameters.sizeFactor <= 1.0f)
     {
         logStream << "Size factor " << parameters.sizeFactor
@@ -270,13 +268,6 @@ glm::uvec3 Converter::computeGroups(const uint32_t& inTrianglesAmount)
     return groups;
 }
 
-GLfloat Converter::maxSizeFactor()
-{
-    //TODO: Find by tests real value for "magic" number
-    uint32_t forInternalUse = 0;
-    return (GLfloat)MAX_ALLOWED_SSBO_SIZE / (MAX_ALLOWED_SSBO_SIZE - (TRIANGLE_SIZE + PRISM_AABB_SIZE + forInternalUse));
-}
-
 glm::uvec3 Converter::maxResolution()
 {
     glm::vec3 shellMin = parameters.trianglesLoader->getAABBMin();
@@ -286,7 +277,7 @@ glm::uvec3 Converter::maxResolution()
     lengthes /= minLength;
     uint16_t totalParts = glm::round(lengthes.x) * glm::round(lengthes.y) * glm::round(lengthes.z);
     if(totalParts == 0)
-        logStream << "setMaxResolution must called after setShellMin and setShellMax\n";
+        logStream << "Invalid AABB min and max (check that loader load file and properly compute AABB)\n";
     uint16_t partSize = (uint16_t)glm::floor(glm::pow((double)MAX_SDF_SSBO_SIZE / (1 * totalParts), 0.333333/*power 1/3*/));
     return (glm::uvec3(glm::round(lengthes.x), glm::round(lengthes.y), glm::round(lengthes.z)) *= partSize);
 }

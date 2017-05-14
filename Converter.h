@@ -3,6 +3,7 @@
 
 #include <fstream>
 #include <vector>
+#include <memory>
 #include "../glm/glm.hpp"
 #include "classes/ShaderProgram.h"
 #include "classes/GLBuffer.h"
@@ -16,8 +17,8 @@ namespace conv
         GLfloat sizeFactor = 2.0f;
         std::string SDFfilename = "";
         glm::uvec3 resolution{0};
-        ITrianglesLoader* trianglesLoader = nullptr;
-        IStopwatch* stopwatch = nullptr;
+        std::shared_ptr<ITrianglesLoader> trianglesLoader;
+        std::shared_ptr<IStopwatch> stopwatch;
         GLfloat fillerValue = 0.0f;
         GLfloat delta = 0.0f;
         std::string fillerPath = "";

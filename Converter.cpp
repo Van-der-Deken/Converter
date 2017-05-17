@@ -85,7 +85,7 @@ void Converter::initialize(const Initializer &initializer)
         parameters.sizeFactor = 2.0f;
     }
     MAX_TRIANGLES_SSBO_SIZE = MAX_ALLOWED_SSBO_SIZE / (parameters.sizeFactor * TRIANGLE_SIZE);
-    MAX_PRISM_AABB_SSBO_SIZE = MAX_ALLOWED_SSBO_SIZE / (parameters.sizeFactor * PRISM_AABB_SIZE);
+    MAX_PRISM_AABBS_SSBO_SIZE = MAX_ALLOWED_SSBO_SIZE / (parameters.sizeFactor * PRISM_AABB_SIZE);
     MAX_SDF_SSBO_SIZE = MAX_ALLOWED_SSBO_SIZE / (parameters.sizeFactor * SDF_ELEMENT_SIZE);
     if(!filler.loadShaderFromFile(parameters.fillerPath, GL_COMPUTE_SHADER))
         filler.printError();

@@ -38,7 +38,6 @@ namespace conv
         private:
             void writeFile();
             glm::uvec3 computeGroups(const uint32_t &inTrianglesAmount);
-            GLfloat maxSizeFactor();
             glm::uvec3 maxResolution();
 
             bool unconstructed = true;
@@ -59,7 +58,7 @@ namespace conv
 
             uint32_t MAX_ALLOWED_SSBO_SIZE = 0;
             uint32_t MAX_TRIANGLES_SSBO_SIZE = 0;
-            uint32_t MAX_PRISM_AABB_SSBO_SIZE = 0;
+            uint32_t MAX_PRISM_AABBS_SSBO_SIZE = 0;
             uint32_t MAX_SDF_SSBO_SIZE = 0;
             uint16_t MAX_WORK_GROUP_COUNT = 0;
             uint16_t TRIANGLE_SIZE = sizeof(ModelTriangle);

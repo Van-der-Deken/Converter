@@ -1,6 +1,6 @@
 # MeshToSDF Converter
 
-This is a simple console application, which allows to convert model with triangular mesh into signed distance field (SDF) representation. Based on algorithm from "Distance Fields for Rapid Collision Detection in Physically Based Modeling" paper, so only two restrictions for supported model:
+This is a simple console application, which allows to convert model with triangular mesh into signed distance field (SDF) representation. Based on algorithm from "Distance Fields for Rapid Collision Detection in Physically Based Modeling" paper, so only two restrictions for supported models:
 * Triangular mesh (as mentioned above)
 * Must be specified vertex normals
 
